@@ -1,55 +1,74 @@
+export const M3u8ProxyV1 = async (request: Request) => {
+  const reqUrl = new URL(request.url);
 
-
-export const M3u8ProxyV1 = async (request: Request<unknown>) => {
-  const url = new URL(request.url);
-  const refererUrl = decodeURIComponent(url.searchParams.get("referer") || "https://ballsod24hrs.com");
-  const targetUrl = decodeURIComponent(url.searchParams.get("url") || "");
-  const originUrl = decodeURIComponent(url.searchParams.get("origin") || "");
-  const proxyAll = decodeURIComponent(url.searchParams.get("all") || "");
+  const targetUrl = decodeURIComponent(reqUrl.searchParams.get("url") || "");
+  const referer = decodeURIComponent(reqUrl.searchParams.get("referer") || "");
+  const origin = decodeURIComponent(reqUrl.searchParams.get("origin") || "");
+  const proxyAll = reqUrl.searchParams.get("all") === "yes";
 
   if (!targetUrl) {
     return new Response("Invalid URL", { status: 400 });
   }
 
-  const response = await fetch(targetUrl, {
+  const upstream = await fetch(targetUrl, {
     headers: {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, HEAD, POST, PUT, DELETE, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-      Referer: refererUrl || "",
-      Origin: originUrl || "",
+      ...(referer && { Referer: referer }),
+      ...(origin && { Origin: origin }),
+      "User-Agent": request.headers.get("user-agent") || "",
+      ...(request.headers.get("range") && {
+        Range: request.headers.get("range")!,
+      }),
     },
   });
 
-  let modifiedM3u8;
-  if (targetUrl.includes(".m3u8")) {
-    modifiedM3u8 = await response.text();
-    const targetUrlTrimmed = `${encodeURIComponent(
-      targetUrl.replace(/([^/]+\.m3u8)$/, "").trim()
-    )}`;
-    const encodedUrl = encodeURIComponent(refererUrl);
-    const encodedOrigin = encodeURIComponent(originUrl);
-    modifiedM3u8 = modifiedM3u8.split("\n").map((line) => {
-      if (line.startsWith("#") || line.trim() == '') {
-        return line;
-      }
-      else if(proxyAll == 'yes' && line.startsWith('http')){ //https://yourproxy.com/?url=https://somevideo.m3u8&all=yes
-        return `${url.origin}?url=${line}`;
-      }
-      return `?url=${targetUrlTrimmed}${line}${originUrl ? `&origin=${encodedOrigin}` : ""
-      }${refererUrl ? `&referer=${encodedUrl}` : ""
-      }`;
-    }).join("\n");
+  const contentType =
+    upstream.headers.get("content-type") || "";
+
+  // ---------- M3U8 ----------
+  if (contentType.includes("application/vnd.apple.mpegurl") || targetUrl.endsWith(".m3u8")) {
+    const text = await upstream.text();
+    const baseUrl = new URL(targetUrl);
+
+    const rewritten = text
+      .split("\n")
+      .map((line) => {
+        if (!line || line.startsWith("#")) return line;
+
+        let absoluteUrl: string;
+
+        if (line.startsWith("http")) {
+          absoluteUrl = line;
+        } else {
+          absoluteUrl = new URL(line, baseUrl).toString();
+        }
+
+        const params = new URLSearchParams({
+          url: absoluteUrl,
+        });
+
+        if (referer) params.set("referer", referer);
+        if (origin) params.set("origin", origin);
+        if (proxyAll) params.set("all", "yes");
+
+        return `${reqUrl.origin}${reqUrl.pathname}?${params.toString()}`;
+      })
+      .join("\n");
+
+    return new Response(rewritten, {
+      headers: {
+        "Content-Type": "application/vnd.apple.mpegurl",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
   }
 
-  return new Response(modifiedM3u8 || response.body, {
-    status: response.status,
-    statusText: response.statusText,
+  // ---------- SEGMENT / KEY ----------
+  return new Response(upstream.body, {
+    status: upstream.status,
     headers: {
+      "Content-Type": contentType,
       "Access-Control-Allow-Origin": "*",
-      "Content-Type":
-        response.headers?.get("Content-Type") ||
-        "application/vnd.apple.mpegurl",
+      "Accept-Ranges": "bytes",
     },
   });
-}
+};
