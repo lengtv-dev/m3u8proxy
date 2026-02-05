@@ -2,7 +2,7 @@
 
 export const M3u8ProxyV1 = async (request: Request<unknown>) => {
   const url = new URL(request.url);
-  const refererUrl = decodeURIComponent(url.searchParams.get("referer") || "");
+  const refererUrl = decodeURIComponent(url.searchParams.get("referer") || "https://ballsod24hrs.com");
   const targetUrl = decodeURIComponent(url.searchParams.get("url") || "");
   const originUrl = decodeURIComponent(url.searchParams.get("origin") || "");
   const proxyAll = decodeURIComponent(url.searchParams.get("all") || "");
