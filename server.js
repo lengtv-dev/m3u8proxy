@@ -21,7 +21,7 @@ app.get('/playlist/:channelId', async (req, res) => {
             if (!line.trim()) return line;
             const absoluteUrl = line.startsWith('http') ? line : baseUrl + line;
             // ส่งกลับมาที่ endpoint /proxy-segment ของเราเอง
-            return `http://localhost:5000/proxy-segment?url=${encodeURIComponent(absoluteUrl)}`;
+            return `m3u8proxy.playidlive.workers.dev/proxy-segment?url=${encodeURIComponent(absoluteUrl)}`;
         });
 
         res.set('Content-Type', 'application/vnd.apple.mpegurl');
