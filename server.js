@@ -41,7 +41,7 @@ app.get('/proxy-segment', async (req, res) => {
             responseType: 'stream',
             headers: {
                 'User-Agent': 'Mozilla/5.0',
-                'Referer': 'https://original-provider.com' // ใส่ Header ตามที่ต้นทางต้องการ
+                'Referer': 'https://olympic-embed.ais-vidnt.com' // ใส่ Header ตามที่ต้นทางต้องการ
             }
         });
 
